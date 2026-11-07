@@ -1,0 +1,6 @@
+{
+  "name": "Verdant Ledger",
+  "description": "Mobile-first personal expense and budget tracker with category spending limits, visual analytics, recurring bill reminders, AI receipt scanning, and CSV export.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="116" fill="#059669"/>
+  <rect x="76" y="106" width="360" height="300" rx="44" fill="#090D16" fill-opacity="0.18"/>
+  <path d="M128 176C128 153.909 145.909 136 168 136H344C366.091 136 384 153.909 384 176V336C384 358.091 366.091 376 344 376H168C145.909 376 128 358.091 128 336V176Z" fill="#FFFFFF"/>
+  <text x="256" y="295" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="150" fill="#059669">₱</text>
+</svg>
