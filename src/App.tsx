@@ -17,6 +17,8 @@ import {
   Smartphone,
   Share,
   PlusSquare,
+  Edit3,
+  Check,
 } from 'lucide-react';
 import {
   ActiveTab,
@@ -48,15 +50,38 @@ import { RecurringView } from './components/RecurringView';
 import { DataPortabilityView } from './components/DataPortabilityView';
 
 const STORAGE_KEYS = {
-  TX: 'verdant_ledger_transactions_v2_php',
-  BUDGETS: 'verdant_ledger_budgets_v2_php',
-  RECURRING: 'verdant_ledger_recurring_v2_php',
-  CURRENCY: 'verdant_ledger_currency_v2_php',
-  THEME: 'verdant_ledger_theme_v2',
+  LEDGER_NAME: 'verdant_ledger_custom_name_v1',
+  TX: 'verdant_ledger_transactions_v3_empty',
+  BUDGETS: 'verdant_ledger_budgets_v3',
+  RECURRING: 'verdant_ledger_recurring_v3',
+  CURRENCY: 'verdant_ledger_currency_v3_php',
+  THEME: 'verdant_ledger_theme_v3',
 };
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
+
+  // Custom Ledger Name state
+  const [ledgerName, setLedgerName] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.LEDGER_NAME);
+      if (saved && saved.trim()) return saved.trim();
+    } catch {
+      // Fallback
+    }
+    return 'Verdant Ledger';
+  });
+  const [isEditingNameInline, setIsEditingNameInline] = useState<boolean>(false);
+  const [draftLedgerName, setDraftLedgerName] = useState<string>(ledgerName);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.LEDGER_NAME, ledgerName);
+      document.title = `${ledgerName} — Mobile Expense Tracker`;
+    } catch {
+      // Ignore storage errors
+    }
+  }, [ledgerName]);
 
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     try {
@@ -71,10 +96,13 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement;
+    const metaTheme = document.getElementById('theme-color-meta');
     if (isDarkMode) {
       root.classList.add('dark');
+      if (metaTheme) metaTheme.setAttribute('content', '#0F172A');
     } else {
       root.classList.remove('dark');
+      if (metaTheme) metaTheme.setAttribute('content', '#FFFFFF');
     }
     try {
       localStorage.setItem(STORAGE_KEYS.THEME, isDarkMode ? 'dark' : 'light');
@@ -83,6 +111,7 @@ export default function App() {
     }
   }, [isDarkMode]);
 
+  // Clear All Transactions by default (initializes to empty array [] unless user adds or imports)
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.TX);
@@ -91,9 +120,9 @@ export default function App() {
         if (Array.isArray(parsed)) return parsed;
       }
     } catch {
-      // Fallback to demo data
+      // Fallback to empty array
     }
-    return getInitialTransactions();
+    return [];
   });
 
   const [budgets, setBudgets] = useState<CategoryBudget[]>(() => {
@@ -104,7 +133,7 @@ export default function App() {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {
-      // Fallback to demo budgets
+      // Fallback to default budgets
     }
     return INITIAL_BUDGETS;
   });
@@ -117,7 +146,7 @@ export default function App() {
         if (Array.isArray(parsed)) return parsed;
       }
     } catch {
-      // Fallback to demo bills
+      // Fallback to default recurring bills
     }
     return getInitialRecurringBills();
   });
@@ -188,6 +217,16 @@ export default function App() {
     window.setTimeout(() => {
       setToastMessage((prev) => (prev === msg ? null : prev));
     }, 3200);
+  };
+
+  const handleCommitInlineName = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = draftLedgerName.trim();
+    if (clean) {
+      setLedgerName(clean);
+      showToast(`Ledger renamed to "${clean}"`);
+    }
+    setIsEditingNameInline(false);
   };
 
   // Core financial metrics
@@ -338,7 +377,12 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `verdant-ledger-${new Date().toISOString().slice(0, 10)}.csv`);
+    const slug =
+      ledgerName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || 'ledger';
+    link.setAttribute('download', `${slug}-${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -368,18 +412,18 @@ export default function App() {
 
   return (
     <div className="min-h-dvh flex flex-col bg-[#F8FAFC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] mb-safe-nav md:pb-12 transition-colors duration-200">
-      {/* Strict 3-Zone Top Bar Contract with iPhone Safe Area Top Inset */}
-      <header className="sticky top-0 z-30 pt-safe bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-4 sm:px-6 flex items-center justify-between gap-8 h-14">
-        {/* Zone 1: Single text element Brand Wordmark */}
+      {/* Solid Opaque iPhone-Safe Top Bar (No backdrop blur collision or crushed height on iOS) */}
+      <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 pt-safe px-4 sm:px-6 min-h-14 flex items-center justify-between gap-8">
+        {/* Zone 1: Single text element Brand Wordmark (Dynamic Custom Ledger Name) */}
         <a
           href="#top"
           onClick={(e) => {
             e.preventDefault();
             setActiveTab('overview');
           }}
-          className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 font-display whitespace-nowrap shrink-0"
+          className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 font-display truncate max-w-[200px] sm:max-w-xs shrink-0 py-3"
         >
-          Verdant Ledger
+          {ledgerName}
         </a>
 
         {/* Zone 2: 5 clean single-line text navigation links */}
@@ -404,7 +448,7 @@ export default function App() {
         </nav>
 
         {/* Zone 3: 1 Primary Action Button */}
-        <div className="flex items-center shrink-0">
+        <div className="flex items-center shrink-0 py-2">
           <button
             type="button"
             onClick={() => handleOpenAddModal('manual')}
@@ -420,11 +464,61 @@ export default function App() {
       <main className="w-full max-w-6xl mx-auto px-4 sm:px-6 pt-4 sm:pt-5 flex-1 space-y-5 sm:space-y-6">
         {/* Top Financial Overview Banner */}
         <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 sm:p-6 space-y-5">
-          {/* Sub-Toolbar for Dark Mode, iPhone App Install & Currency Indicator */}
+          {/* Sub-Toolbar for Renaming Ledger, Dark Mode, and iPhone Setup */}
           <div className="flex flex-wrap items-center justify-between gap-3 pb-3.5 border-b border-slate-100 dark:border-slate-800">
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              Philippine Peso Ledger ({currency.code} {currency.symbol}) · iPhone Ready
-            </div>
+            {isEditingNameInline ? (
+              <form
+                onSubmit={handleCommitInlineName}
+                className="flex items-center gap-2 flex-1 min-w-[220px]"
+              >
+                <input
+                  type="text"
+                  value={draftLedgerName}
+                  onChange={(e) => setDraftLedgerName(e.target.value)}
+                  maxLength={36}
+                  placeholder="Enter ledger name..."
+                  autoFocus
+                  className="min-h-[38px] px-3 py-1 rounded-xl border border-emerald-500 bg-white dark:bg-slate-950 text-base sm:text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold flex items-center gap-1 shrink-0"
+                >
+                  <Check size={14} />
+                  <span>Save</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingNameInline(false)}
+                  className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold shrink-0"
+                >
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                  {ledgerName}
+                </span>
+                <span className="text-xs text-slate-400" aria-hidden="true">
+                  ·
+                </span>
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  {currency.code} ({currency.symbol})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftLedgerName(ledgerName);
+                    setIsEditingNameInline(true);
+                  }}
+                  className="min-h-[34px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
+                >
+                  <Edit3 size={12} />
+                  <span>Rename Ledger</span>
+                </button>
+              </div>
+            )}
 
             <div className="flex items-center gap-2">
               <button
@@ -433,7 +527,7 @@ export default function App() {
                 className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
               >
                 <Smartphone size={14} className="text-emerald-600 dark:text-emerald-400" />
-                <span>iPhone App Setup</span>
+                <span>iPhone Setup</span>
               </button>
 
               <button
@@ -445,12 +539,12 @@ export default function App() {
                 {isDarkMode ? (
                   <>
                     <Sun size={14} className="text-amber-400" />
-                    <span>Light Mode</span>
+                    <span>Light</span>
                   </>
                 ) : (
                   <>
                     <Moon size={14} className="text-slate-600" />
-                    <span>Dark Mode</span>
+                    <span>Dark</span>
                   </>
                 )}
               </button>
@@ -483,7 +577,7 @@ export default function App() {
                         ? 'bg-amber-500'
                         : 'bg-emerald-600 dark:bg-emerald-500'
                     }`}
-                    style={{ width: `${Math.max(3, budgetUsedPct)}%` }}
+                    style={{ width: `${Math.max(2, budgetUsedPct)}%` }}
                   />
                 </div>
                 <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-1.5 font-mono-num">
@@ -690,20 +784,33 @@ export default function App() {
                   <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                     Transactions ({filteredTransactions.length})
                   </h2>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                    Tap any row to edit
-                  </span>
+                  {transactions.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTransactions([]);
+                        showToast('Cleared all transactions');
+                      }}
+                      className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline"
+                    >
+                      Clear All
+                    </button>
+                  )}
                 </div>
 
                 {filteredTransactions.length === 0 ? (
                   <div className="p-10 text-center space-y-3">
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                      No transactions match your current filter
+                      {transactions.length === 0
+                        ? 'Your ledger is clean and ready'
+                        : 'No transactions match your current filter'}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                      Try clearing your date or category filter, or log a new expense using the tactile keypad or receipt scanner.
+                      {transactions.length === 0
+                        ? 'Log your first expense in Philippine Peso (₱) using the tactile keypad or snap a receipt photo.'
+                        : 'Try clearing your date or category filter, or log a new expense.'}
                     </p>
-                    <div className="flex items-center justify-center gap-2 pt-1">
+                    <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
                       {(selectedDateIso || selectedCategory !== 'ALL' || searchQuery) && (
                         <button
                           type="button"
@@ -720,9 +827,18 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => handleOpenAddModal('manual')}
-                        className="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold text-white"
+                        className="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold text-white flex items-center gap-1.5"
                       >
-                        Log First Entry
+                        <Plus size={15} />
+                        <span>Log First Expense</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenAddModal('scan')}
+                        className="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 hover:bg-emerald-100 dark:hover:bg-emerald-900/70 text-xs font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5"
+                      >
+                        <Camera size={15} />
+                        <span>Scan Receipt</span>
                       </button>
                     </div>
                   </div>
@@ -835,7 +951,7 @@ export default function App() {
                                 ? 'bg-amber-500'
                                 : meta.barClass
                             }`}
-                            style={{ width: `${Math.min(100, Math.max(3, pct))}%` }}
+                            style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
                           />
                         </div>
                       </div>
@@ -914,13 +1030,29 @@ export default function App() {
 
         {activeTab === 'data' && (
           <DataPortabilityView
+            ledgerName={ledgerName}
+            onUpdateLedgerName={(newName) => {
+              setLedgerName(newName);
+              setDraftLedgerName(newName);
+            }}
             transactions={transactions}
+            budgets={budgets}
+            recurringBills={recurringBills}
             currency={currency}
             isDarkMode={isDarkMode}
             onToggleDarkMode={() => setIsDarkMode((prev) => !prev)}
             onSelectCurrency={setCurrency}
             onImportTransactions={(imported) => {
               setTransactions((prev) => [...imported, ...prev]);
+            }}
+            onRestoreBackup={(backup) => {
+              setLedgerName(backup.ledgerName);
+              setDraftLedgerName(backup.ledgerName);
+              setCurrency(backup.currency);
+              setTransactions(backup.transactions);
+              setBudgets(backup.budgets);
+              setRecurringBills(backup.recurringBills);
+              showToast(`Restored backup "${backup.ledgerName}"`);
             }}
             onRestoreDemoData={() => {
               setTransactions(getInitialTransactions());
@@ -935,9 +1067,9 @@ export default function App() {
         )}
       </main>
 
-      {/* Mobile Fixed Bottom Tab Bar with iPhone Home Indicator Safe-Area Padding */}
+      {/* Mobile Fixed Bottom Tab Bar with Solid Opaque Surface & iPhone Safe-Area Padding */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 pb-safe bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 grid grid-cols-5 items-center"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 pb-safe bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-2 grid grid-cols-5 items-center"
         aria-label="Mobile Bottom Navigation"
       >
         {navItems.map((item) => {
@@ -1017,7 +1149,7 @@ export default function App() {
                     Step 2: Add to Home Screen
                   </span>
                   <p className="text-slate-500 dark:text-slate-400 mt-0.5">
-                    Scroll down and tap <strong>Add to Home Screen</strong>. Verdant Ledger will launch full-screen without browser bars and keep your Peso (₱) data saved offline on your iPhone.
+                    Scroll down and tap <strong>Add to Home Screen</strong>. {ledgerName} will launch full-screen without browser bars and keep your Peso (₱) data saved offline on your iPhone.
                   </p>
                 </div>
               </div>

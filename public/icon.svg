@@ -1,6 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Emerald Squircle App Background -->
   <rect width="512" height="512" rx="116" fill="#059669"/>
-  <rect x="76" y="106" width="360" height="300" rx="44" fill="#090D16" fill-opacity="0.18"/>
-  <path d="M128 176C128 153.909 145.909 136 168 136H344C366.091 136 384 153.909 384 176V336C384 358.091 366.091 376 344 376H168C145.909 376 128 358.091 128 336V176Z" fill="#FFFFFF"/>
-  <text x="256" y="295" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="150" fill="#059669">₱</text>
+  <!-- Subtle Book Drop Shadow -->
+  <rect x="116" y="88" width="292" height="352" rx="32" fill="#022C22" fill-opacity="0.28"/>
+  <!-- White Page Block / Back Cover -->
+  <rect x="112" y="80" width="288" height="344" rx="28" fill="#FFFFFF"/>
+  <!-- Page Edge Fore-edge Lines -->
+  <rect x="376" y="96" width="10" height="312" rx="5" fill="#E2E8F0"/>
+  <!-- Book Spine (Left Binding) -->
+  <path d="M112 108C112 92.536 124.536 80 140 80H168V424H140C124.536 424 112 411.464 112 396V108Z" fill="#064E3B"/>
+  <!-- Spine Highlight -->
+  <rect x="164" y="80" width="6" height="344" fill="#047857"/>
+  <!-- Gold Bookmark Ribbon -->
+  <path d="M316 80H352V176L334 158L316 176V80Z" fill="#F59E0B"/>
+  <!-- Ledger Cover Ruled Lines & Emblem -->
+  <rect x="200" y="148" width="96" height="20" rx="10" fill="#059669"/>
+  <rect x="200" y="204" width="148" height="16" rx="8" fill="#10B981"/>
+  <rect x="200" y="248" width="148" height="16" rx="8" fill="#CBD5E1"/>
+  <rect x="200" y="292" width="148" height="16" rx="8" fill="#CBD5E1"/>
+  <rect x="200" y="336" width="112" height="16" rx="8" fill="#CBD5E1"/>
 </svg>

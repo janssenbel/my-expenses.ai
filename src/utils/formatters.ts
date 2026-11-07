@@ -1,5 +1,12 @@
-import { CurrencyConfig, ExpenseCategory, PaymentMethod, Transaction } from '../types';
-import { EXPENSE_CATEGORIES } from '../data/demoData';
+import {
+  CategoryBudget,
+  CurrencyConfig,
+  ExpenseCategory,
+  PaymentMethod,
+  RecurringBill,
+  Transaction,
+} from '../types';
+import { CURRENCIES, EXPENSE_CATEGORIES, INITIAL_BUDGETS } from '../data/demoData';
 
 export function formatMoney(amount: number, currency: CurrencyConfig, showSign = false): string {
   const isZeroDecimal = currency.code === 'JPY';
@@ -154,4 +161,68 @@ export function parseTransactionsCSV(csvText: string): Transaction[] {
   }
 
   return imported;
+}
+
+export interface LedgerBackupPayload {
+  version: number;
+  exportedAt: string;
+  ledgerName: string;
+  currency: CurrencyConfig;
+  transactions: Transaction[];
+  budgets: CategoryBudget[];
+  recurringBills: RecurringBill[];
+}
+
+export function generateLedgerBackupJSON(payload: Omit<LedgerBackupPayload, 'version' | 'exportedAt'>): string {
+  const backup: LedgerBackupPayload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    ...payload,
+  };
+  return JSON.stringify(backup, null, 2);
+}
+
+export function parseLedgerBackupJSON(jsonText: string): LedgerBackupPayload {
+  const raw = JSON.parse(jsonText);
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Invalid JSON backup file.');
+  }
+
+  // Support either full backup object or raw array of transactions
+  if (Array.isArray(raw)) {
+    return {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      ledgerName: 'Verdant Ledger',
+      currency: CURRENCIES[0],
+      transactions: raw as Transaction[],
+      budgets: INITIAL_BUDGETS,
+      recurringBills: [],
+    };
+  }
+
+  if (!Array.isArray(raw.transactions)) {
+    throw new Error('Backup JSON does not contain a valid transactions array.');
+  }
+
+  const matchedCurrency =
+    CURRENCIES.find((c) => c.code === raw.currency?.code) ?? CURRENCIES[0];
+
+  return {
+    version: Number(raw.version) || 1,
+    exportedAt: String(raw.exportedAt || new Date().toISOString()),
+    ledgerName:
+      typeof raw.ledgerName === 'string' && raw.ledgerName.trim()
+        ? raw.ledgerName.trim()
+        : 'Verdant Ledger',
+    currency: matchedCurrency,
+    transactions: raw.transactions as Transaction[],
+    budgets:
+      Array.isArray(raw.budgets) && raw.budgets.length > 0
+        ? (raw.budgets as CategoryBudget[])
+        : INITIAL_BUDGETS,
+    recurringBills: Array.isArray(raw.recurringBills)
+      ? (raw.recurringBills as RecurringBill[])
+      : [],
+  };
 }
