@@ -9,6 +9,9 @@ import {
   Sparkles,
   Upload,
   AlertCircle,
+  Keyboard,
+  ChevronRight,
+  ArrowLeft,
 } from 'lucide-react';
 import {
   CurrencyConfig,
@@ -30,7 +33,7 @@ interface ExpenseSheetModalProps {
   onDelete?: (id: string) => void;
   editingTransaction: Transaction | null;
   currency: CurrencyConfig;
-  initialMode?: 'manual' | 'scan';
+  initialMode?: 'choice' | 'manual' | 'scan';
   initialEntryType?: 'expense' | 'income';
 }
 
@@ -50,10 +53,11 @@ export const ExpenseSheetModal: React.FC<ExpenseSheetModalProps> = ({
   onDelete,
   editingTransaction,
   currency,
-  initialMode = 'manual',
+  initialMode = 'choice',
   initialEntryType = 'expense',
 }) => {
   const [entryType, setEntryType] = useState<'expense' | 'income'>('expense');
+  const [expenseMethod, setExpenseMethod] = useState<'choice' | 'manual' | 'scan'>('choice');
   const [amountStr, setAmountStr] = useState<string>('0');
   const [title, setTitle] = useState<string>('');
   const [category, setCategory] = useState<ExpenseCategory>('Food & Dining');
@@ -64,7 +68,6 @@ export const ExpenseSheetModal: React.FC<ExpenseSheetModalProps> = ({
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Receipt AI scanning state
-  const [showScannerPanel, setShowScannerPanel] = useState<boolean>(false);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanSuccessBanner, setScanSuccessBanner] = useState<string | null>(null);
@@ -94,7 +97,7 @@ export const ExpenseSheetModal: React.FC<ExpenseSheetModalProps> = ({
       setDate(editingTransaction.date);
       setNotes(editingTransaction.notes ?? '');
       setReceiptItems(editingTransaction.receiptItems ?? []);
-      setShowScannerPanel(false);
+      setExpenseMethod('manual');
     } else {
       setEntryType(initialEntryType);
       setAmountStr('0');
@@ -110,7 +113,7 @@ export const ExpenseSheetModal: React.FC<ExpenseSheetModalProps> = ({
       setDate(new Date().toISOString().slice(0, 10));
       setNotes('');
       setReceiptItems([]);
-      setShowScannerPanel(initialEntryType === 'expense' && initialMode === 'scan');
+      setExpenseMethod(initialEntryType === 'income' ? 'manual' : initialMode);
     }
   }, [isOpen, editingTransaction, initialMode, initialEntryType, currency.code]);
 
@@ -182,7 +185,7 @@ export const ExpenseSheetModal: React.FC<ExpenseSheetModalProps> = ({
     if (Array.isArray(scanned.items)) {
       setReceiptItems(scanned.items);
     }
-    setShowScannerPanel(false);
+    setExpenseMethod('manual');
     setScanSuccessBanner(
       `Extracted ${scanned.merchant || 'Receipt'} (${currency.symbol}${(scanned.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`
     );
@@ -280,12 +283,15 @@ export const ExpenseSheetModal: React.FC<ExpenseSheetModalProps> = ({
     onClose();
   };
 
+  const isChoiceScreen = !editingTransaction && entryType === 'expense' && expenseMethod === 'choice';
+  const showScannerPanel = entryType === 'expense' && expenseMethod === 'scan';
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/60 backdrop-blur-xs transition-opacity"
       role="dialog"
       aria-modal="true"
-      aria-label={editingTransaction ? 'Edit Transaction' : 'Log Transaction'}
+      aria-label={editingTransaction ? 'Edit Transaction' : 'Record Expense'}
     >
       <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-h-[92dvh] flex flex-col overflow-hidden pb-safe-sheet">
         {/* Grab Handle for iPhone Ergonomics */}
@@ -293,51 +299,75 @@ export const ExpenseSheetModal: React.FC<ExpenseSheetModalProps> = ({
 
         {/* Sheet Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
-            <button
-              type="button"
-              onClick={() => {
-                setEntryType('expense');
-                if (category === 'Income') setCategory('Food & Dining');
-              }}
-              className={`min-h-[38px] px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 ${
-                entryType === 'expense'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
-              }`}
-            >
-              Expense
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setEntryType('income');
-                setCategory('Income');
-                setShowScannerPanel(false);
-              }}
-              className={`min-h-[38px] px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 ${
-                entryType === 'income'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
-              }`}
-            >
-              Income
-            </button>
+          <div className="flex items-center gap-2">
+            {!editingTransaction && entryType === 'expense' && expenseMethod !== 'choice' && (
+              <button
+                type="button"
+                onClick={() => setExpenseMethod('choice')}
+                aria-label="Back to Record Expense options"
+                className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1 transition-colors"
+              >
+                <ArrowLeft size={14} />
+                <span>Options</span>
+              </button>
+            )}
+            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setEntryType('expense');
+                  if (category === 'Income') setCategory('Food & Dining');
+                }}
+                className={`min-h-[38px] px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+                  entryType === 'expense'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                }`}
+              >
+                Record Expense
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEntryType('income');
+                  setCategory('Income');
+                  setExpenseMethod('manual');
+                }}
+                className={`min-h-[38px] px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 ${
+                  entryType === 'income'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                }`}
+              >
+                Income
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {entryType === 'expense' && (
+            {entryType === 'expense' && !isChoiceScreen && (
               <button
                 type="button"
-                onClick={() => setShowScannerPanel((prev) => !prev)}
-                className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
+                onClick={() =>
+                  setExpenseMethod((prev) => (prev === 'scan' ? 'manual' : 'scan'))
+                }
+                className={`min-h-[40px] px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
                   showScannerPanel
                     ? 'bg-emerald-600 text-white'
                     : 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/70'
                 }`}
               >
-                <Camera size={15} />
-                <span>{showScannerPanel ? 'Manual Keypad' : 'Scan Receipt'}</span>
+                {showScannerPanel ? (
+                  <>
+                    <Keyboard size={14} />
+                    <span>Manual Input</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera size={14} />
+                    <span>Scan Receipt</span>
+                  </>
+                )}
               </button>
             )}
             <button
@@ -351,7 +381,69 @@ export const ExpenseSheetModal: React.FC<ExpenseSheetModalProps> = ({
           </div>
         </div>
 
-        {/* Scrollable Sheet Body */}
+        {/* Choice View vs. Scrollable Sheet Body */}
+        {isChoiceScreen ? (
+          <div className="px-5 py-6 space-y-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                Record Expense
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Choose how you would like to record your expense:
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              <button
+                type="button"
+                onClick={() => setExpenseMethod('scan')}
+                className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/30 text-left flex items-center justify-between gap-4 transition-all group"
+              >
+                <div className="flex items-start gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    <Camera size={20} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-slate-900 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                      Scan a Receipt
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Take a photo or upload an image of your receipt to extract amount, merchant, and items automatically.
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight
+                  size={18}
+                  className="text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 shrink-0 transition-colors"
+                />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setExpenseMethod('manual')}
+                className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/30 text-left flex items-center justify-between gap-4 transition-all group"
+              >
+                <div className="flex items-start gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center shrink-0">
+                    <Keyboard size={20} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-slate-900 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                      Manually Input Data
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Enter the Peso ({currency.symbol}) amount using the keypad and select the merchant, category, and payment method.
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight
+                  size={18}
+                  className="text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 shrink-0 transition-colors"
+                />
+              </button>
+            </div>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="overflow-y-auto px-5 py-4 space-y-4 flex-1 no-scrollbar">
           {scanSuccessBanner && (
             <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800/80 flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-200">
@@ -663,6 +755,7 @@ export const ExpenseSheetModal: React.FC<ExpenseSheetModalProps> = ({
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );
