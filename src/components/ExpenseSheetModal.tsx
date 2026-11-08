@@ -31,6 +31,7 @@ interface ExpenseSheetModalProps {
   editingTransaction: Transaction | null;
   currency: CurrencyConfig;
   initialMode?: 'manual' | 'scan';
+  initialEntryType?: 'expense' | 'income';
 }
 
 const PAYMENT_METHODS: PaymentMethod[] = [
@@ -50,6 +51,7 @@ export const ExpenseSheetModal: React.FC<ExpenseSheetModalProps> = ({
   editingTransaction,
   currency,
   initialMode = 'manual',
+  initialEntryType = 'expense',
 }) => {
   const [entryType, setEntryType] = useState<'expense' | 'income'>('expense');
   const [amountStr, setAmountStr] = useState<string>('0');
@@ -69,7 +71,13 @@ export const ExpenseSheetModal: React.FC<ExpenseSheetModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const quickPresetAmounts =
-    currency.code === 'PHP' ? [150, 350, 750, 1500, 3000] : [8.5, 15, 35, 75, 120];
+    currency.code === 'PHP'
+      ? entryType === 'income'
+        ? [5000, 15000, 25000, 50000]
+        : [150, 350, 750, 1500, 3000]
+      : entryType === 'income'
+      ? [250, 500, 1500, 3000]
+      : [8.5, 15, 35, 75, 120];
 
   useEffect(() => {
     if (!isOpen) return;
@@ -88,17 +96,23 @@ export const ExpenseSheetModal: React.FC<ExpenseSheetModalProps> = ({
       setReceiptItems(editingTransaction.receiptItems ?? []);
       setShowScannerPanel(false);
     } else {
-      setEntryType('expense');
+      setEntryType(initialEntryType);
       setAmountStr('0');
       setTitle('');
-      setCategory('Food & Dining');
-      setPaymentMethod(currency.code === 'PHP' ? 'GCash' : 'Apple Pay');
+      setCategory(initialEntryType === 'income' ? 'Income' : 'Food & Dining');
+      setPaymentMethod(
+        initialEntryType === 'income'
+          ? 'Transfer'
+          : currency.code === 'PHP'
+          ? 'GCash'
+          : 'Apple Pay'
+      );
       setDate(new Date().toISOString().slice(0, 10));
       setNotes('');
       setReceiptItems([]);
-      setShowScannerPanel(initialMode === 'scan');
+      setShowScannerPanel(initialEntryType === 'expense' && initialMode === 'scan');
     }
-  }, [isOpen, editingTransaction, initialMode, currency.code]);
+  }, [isOpen, editingTransaction, initialMode, initialEntryType, currency.code]);
 
   if (!isOpen) return null;
 

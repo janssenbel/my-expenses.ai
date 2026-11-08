@@ -1,7 +1,17 @@
 import React, { useState } from 'react';
-import { AlertTriangle, CheckCircle2, Edit3, Check, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Edit3,
+  Check,
+  X,
+  Trash2,
+  Plus,
+  EyeOff,
+  RotateCcw,
+} from 'lucide-react';
 import { CategoryBudget, CurrencyConfig, ExpenseCategory, Transaction } from '../types';
-import { CATEGORY_META } from '../data/demoData';
+import { CATEGORY_META, EXPENSE_CATEGORIES } from '../data/demoData';
 import { CategoryIcon } from './CategoryIcon';
 import { formatMoney } from '../utils/formatters';
 
@@ -10,6 +20,10 @@ interface BudgetsViewProps {
   transactions: Transaction[];
   currency: CurrencyConfig;
   onUpdateBudgetLimit: (category: Exclude<ExpenseCategory, 'Income'>, newLimit: number) => void;
+  onRemoveCategoryBudget: (category: Exclude<ExpenseCategory, 'Income'>) => void;
+  onAddCategoryBudget: (category: Exclude<ExpenseCategory, 'Income'>, monthlyLimit: number) => void;
+  onResetDefaultBudgets: () => void;
+  onDisableCategorySpending: () => void;
 }
 
 export const BudgetsView: React.FC<BudgetsViewProps> = ({
@@ -17,11 +31,24 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
   transactions,
   currency,
   onUpdateBudgetLimit,
+  onRemoveCategoryBudget,
+  onAddCategoryBudget,
+  onResetDefaultBudgets,
+  onDisableCategorySpending,
 }) => {
   const [editingCategory, setEditingCategory] = useState<Exclude<ExpenseCategory, 'Income'> | null>(
     null
   );
   const [draftLimit, setDraftLimit] = useState<string>('');
+  const [newCategoryToAdd, setNewCategoryToAdd] = useState<Exclude<ExpenseCategory, 'Income'> | ''>(
+    ''
+  );
+  const [newCategoryLimit, setNewCategoryLimit] = useState<string>('5000');
+
+  // Categories that are not currently in budgets
+  const availableCategoriesToAdd = EXPENSE_CATEGORIES.filter(
+    (cat) => !budgets.some((b) => b.category === cat)
+  );
 
   // Compute current month expenses per category
   const spentByCategory = transactions.reduce<Record<string, number>>((acc, tx) => {
@@ -52,6 +79,16 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
       onUpdateBudgetLimit(cat, Math.round(val));
     }
     setEditingCategory(null);
+  };
+
+  const handleAddCategorySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetCat =
+      (newCategoryToAdd as Exclude<ExpenseCategory, 'Income'>) || availableCategoriesToAdd[0];
+    const limitVal = parseFloat(newCategoryLimit);
+    if (!targetCat || Number.isNaN(limitVal) || limitVal <= 0) return;
+    onAddCategoryBudget(targetCat, Math.round(limitVal));
+    setNewCategoryToAdd('');
   };
 
   return (
@@ -115,123 +152,210 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
 
       {/* Individual Category Budget Cards */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
-        <div className="px-5 py-4 flex items-center justify-between">
+        <div className="px-5 py-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
               Category Spending Limits
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Tap any monthly limit to adjust your target threshold.
+              Tap any monthly limit to edit, or remove categories you do not want to track.
             </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {availableCategoriesToAdd.length > 0 && (
+              <button
+                type="button"
+                onClick={onResetDefaultBudgets}
+                className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+              >
+                <RotateCcw size={13} />
+                <span>Restore All Categories</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onDisableCategorySpending}
+              className="min-h-[38px] px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/70 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+            >
+              <EyeOff size={13} />
+              <span>Remove Category Spending</span>
+            </button>
           </div>
         </div>
 
-        {budgets.map((budget) => {
-          const spent = spentByCategory[budget.category] ?? 0;
-          const ratio = budget.monthlyLimit > 0 ? spent / budget.monthlyLimit : 0;
-          const pct = Math.round(ratio * 100);
-          const remaining = budget.monthlyLimit - spent;
-          const isOver = ratio > 1;
-          const isWarning = !isOver && ratio >= budget.alertThreshold;
-          const meta = CATEGORY_META[budget.category];
+        {/* Add Back Removed Category Form */}
+        {availableCategoriesToAdd.length > 0 && (
+          <form
+            onSubmit={handleAddCategorySubmit}
+            className="px-5 py-3.5 bg-slate-50/70 dark:bg-slate-800/40 flex flex-wrap items-center justify-between gap-3"
+          >
+            <div className="text-xs font-medium text-slate-600 dark:text-slate-300">
+              Add a category limit:
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={newCategoryToAdd || availableCategoriesToAdd[0]}
+                onChange={(e) =>
+                  setNewCategoryToAdd(e.target.value as Exclude<ExpenseCategory, 'Income'>)
+                }
+                className="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-base sm:text-xs font-semibold text-slate-900 dark:text-slate-100"
+              >
+                {availableCategoriesToAdd.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min={10}
+                step={100}
+                value={newCategoryLimit}
+                onChange={(e) => setNewCategoryLimit(e.target.value)}
+                placeholder="Limit"
+                className="w-28 min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-base sm:text-xs font-mono-num text-slate-900 dark:text-slate-100"
+              />
+              <button
+                type="submit"
+                className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1"
+              >
+                <Plus size={14} />
+                <span>Add Category</span>
+              </button>
+            </div>
+          </form>
+        )}
 
-          return (
-            <div key={budget.category} className="p-5 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <CategoryIcon category={budget.category} size="md" />
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
-                      {budget.category}
+        {budgets.length === 0 ? (
+          <div className="p-8 text-center space-y-3">
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              All category spending limits have been removed
+            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              You can add individual categories back above, restore defaults, or hide Category Spending completely.
+            </p>
+          </div>
+        ) : (
+          budgets.map((budget) => {
+            const spent = spentByCategory[budget.category] ?? 0;
+            const ratio = budget.monthlyLimit > 0 ? spent / budget.monthlyLimit : 0;
+            const pct = Math.round(ratio * 100);
+            const remaining = budget.monthlyLimit - spent;
+            const isOver = ratio > 1;
+            const isWarning = !isOver && ratio >= budget.alertThreshold;
+            const meta = CATEGORY_META[budget.category];
+
+            return (
+              <div key={budget.category} className="p-5 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <CategoryIcon category={budget.category} size="md" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                        {budget.category}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        {isOver ? (
+                          <span className="text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1">
+                            <AlertTriangle size={13} />
+                            Over limit by {formatMoney(Math.abs(remaining), currency)}
+                          </span>
+                        ) : isWarning ? (
+                          <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                            <AlertTriangle size={13} />
+                            Approaching limit · {formatMoney(remaining, currency)} left
+                          </span>
+                        ) : (
+                          <span className="text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1">
+                            <CheckCircle2 size={13} />
+                            On track · {formatMoney(remaining, currency)} left
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      {isOver ? (
-                        <span className="text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1">
-                          <AlertTriangle size={13} />
-                          Over limit by {formatMoney(Math.abs(remaining), currency)}
-                        </span>
-                      ) : isWarning ? (
-                        <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-                          <AlertTriangle size={13} />
-                          Approaching limit · {formatMoney(remaining, currency)} left
-                        </span>
-                      ) : (
-                        <span className="text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1">
-                          <CheckCircle2 size={13} />
-                          On track · {formatMoney(remaining, currency)} left
-                        </span>
-                      )}
-                    </div>
+                  </div>
+
+                  {/* Inline Budget Editor + Remove Category Button */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {editingCategory === budget.category ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={10}
+                          step={100}
+                          value={draftLimit}
+                          onChange={(e) => setDraftLimit(e.target.value)}
+                          className="w-28 min-h-[40px] px-2.5 py-1 rounded-lg border border-emerald-500 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-base sm:text-sm font-mono-num text-right focus:outline-none"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => commitEdit(budget.category)}
+                          aria-label="Save budget limit"
+                          className="min-h-[40px] min-w-[40px] rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700"
+                        >
+                          <Check size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingCategory(null)}
+                          aria-label="Cancel budget edit"
+                          className="min-h-[40px] min-w-[40px] rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => startEditing(budget.category, budget.monthlyLimit)}
+                          className="min-h-[44px] px-2.5 py-1 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors text-right group"
+                        >
+                          <div className="font-mono-num text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center justify-end gap-1.5">
+                            <span>{formatMoney(spent, currency)}</span>
+                            <span className="text-slate-400 dark:text-slate-500 font-normal">/</span>
+                            <span className="text-slate-600 dark:text-slate-300">
+                              {formatMoney(budget.monthlyLimit, currency)}
+                            </span>
+                            <Edit3
+                              size={13}
+                              className="text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors"
+                            />
+                          </div>
+                          <div className="font-mono-num text-[11px] text-slate-500 dark:text-slate-400">
+                            {pct}% utilized
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => onRemoveCategoryBudget(budget.category)}
+                          aria-label={`Remove ${budget.category} category spending`}
+                          title={`Remove ${budget.category}`}
+                          className="min-h-[40px] min-w-[40px] rounded-xl text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 flex items-center justify-center transition-colors"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                {/* Inline Budget Editor or Value Display */}
-                <div className="text-right shrink-0">
-                  {editingCategory === budget.category ? (
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        min={10}
-                        step={100}
-                        value={draftLimit}
-                        onChange={(e) => setDraftLimit(e.target.value)}
-                        className="w-28 min-h-[40px] px-2.5 py-1 rounded-lg border border-emerald-500 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-base sm:text-sm font-mono-num text-right focus:outline-none"
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        onClick={() => commitEdit(budget.category)}
-                        aria-label="Save budget limit"
-                        className="min-h-[40px] min-w-[40px] rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700"
-                      >
-                        <Check size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingCategory(null)}
-                        aria-label="Cancel budget edit"
-                        className="min-h-[40px] min-w-[40px] rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => startEditing(budget.category, budget.monthlyLimit)}
-                      className="min-h-[44px] px-2.5 py-1 -mr-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors text-right group"
-                    >
-                      <div className="font-mono-num text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center justify-end gap-1.5">
-                        <span>{formatMoney(spent, currency)}</span>
-                        <span className="text-slate-400 dark:text-slate-500 font-normal">/</span>
-                        <span className="text-slate-600 dark:text-slate-300">
-                          {formatMoney(budget.monthlyLimit, currency)}
-                        </span>
-                        <Edit3
-                          size={13}
-                          className="text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors"
-                        />
-                      </div>
-                      <div className="font-mono-num text-[11px] text-slate-500 dark:text-slate-400">
-                        {pct}% utilized
-                      </div>
-                    </button>
-                  )}
+                {/* Progress Bar */}
+                <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-200 ${
+                      isOver ? 'bg-rose-600' : isWarning ? 'bg-amber-500' : meta.barClass
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
+                  />
                 </div>
               </div>
-
-              {/* Progress Bar */}
-              <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-200 ${
-                    isOver ? 'bg-rose-600' : isWarning ? 'bg-amber-500' : meta.barClass
-                  }`}
-                  style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
     </div>
   );

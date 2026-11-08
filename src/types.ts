@@ -48,7 +48,7 @@ export interface RecurringBill {
   lastPaidDate?: string;
 }
 
-export type ActiveTab = 'overview' | 'budgets' | 'analytics' | 'recurring' | 'data';
+export type ActiveTab = 'overview' | 'income' | 'budgets' | 'analytics' | 'recurring' | 'data';
 
 export interface CurrencyConfig {
   code: 'PHP' | 'USD' | 'EUR' | 'GBP' | 'JPY' | 'CAD' | 'AUD';

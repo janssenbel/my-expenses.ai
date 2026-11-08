@@ -29,6 +29,8 @@ import {
 interface DataPortabilityViewProps {
   ledgerName: string;
   onUpdateLedgerName: (name: string) => void;
+  showCategorySpending: boolean;
+  onToggleCategorySpending: () => void;
   transactions: Transaction[];
   budgets: CategoryBudget[];
   recurringBills: RecurringBill[];
@@ -45,6 +47,8 @@ interface DataPortabilityViewProps {
 export const DataPortabilityView: React.FC<DataPortabilityViewProps> = ({
   ledgerName,
   onUpdateLedgerName,
+  showCategorySpending,
+  onToggleCategorySpending,
   transactions,
   budgets,
   recurringBills,
@@ -263,6 +267,38 @@ export const DataPortabilityView: React.FC<DataPortabilityViewProps> = ({
             <span>Save Ledger Name</span>
           </button>
         </form>
+      </div>
+
+      {/* Category Spending Visibility Option */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+            Category Spending & Budgets
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            {showCategorySpending
+              ? 'Category Spending widgets and the Budgets tab are currently visible.'
+              : 'Category Spending has been removed from your views for a cleaner ledger.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            onToggleCategorySpending();
+            setStatusNotice(
+              showCategorySpending
+                ? 'Removed Category Spending from your workspace.'
+                : 'Restored Category Spending and Budgets tab.'
+            );
+          }}
+          className={`min-h-[44px] px-4 py-2.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+            showCategorySpending
+              ? 'border border-rose-200 dark:border-rose-900/70 bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-100'
+              : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+          }`}
+        >
+          {showCategorySpending ? 'Remove Category Spending' : 'Show Category Spending'}
+        </button>
       </div>
 
       {/* iPhone Home Screen Installation & Appearance Card */}

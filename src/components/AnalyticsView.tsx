@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { EyeOff, Eye } from 'lucide-react';
 import { CurrencyConfig, ExpenseCategory, Transaction } from '../types';
 import { CATEGORY_META, EXPENSE_CATEGORIES } from '../data/demoData';
 import { formatMoney } from '../utils/formatters';
@@ -7,9 +8,16 @@ import { CategoryIcon } from './CategoryIcon';
 interface AnalyticsViewProps {
   transactions: Transaction[];
   currency: CurrencyConfig;
+  showCategorySpending: boolean;
+  onToggleCategorySpending: () => void;
 }
 
-export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ transactions, currency }) => {
+export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
+  transactions,
+  currency,
+  showCategorySpending,
+  onToggleCategorySpending,
+}) => {
   const [timeframeDays, setTimeframeDays] = useState<7 | 14 | 30>(14);
 
   const expenses = useMemo(
@@ -126,17 +134,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ transactions, curr
 
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5">
           <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-            Largest Category
+            Total Logged Income vs. Spend
           </div>
-          <div className="text-xl font-bold text-slate-900 dark:text-slate-100 mt-1 truncate">
-            {categoryBreakdown[0]?.category ?? 'None'}
+          <div className="font-mono-num text-xl font-bold text-slate-900 dark:text-slate-100 mt-1 truncate">
+            {formatMoney(totalIncome, currency, true)} / {formatMoney(totalExpense, currency)}
           </div>
-          <div className="font-mono-num text-xs text-slate-500 dark:text-slate-400 mt-1">
-            {categoryBreakdown[0]
-              ? `${formatMoney(categoryBreakdown[0].amount, currency)} (${Math.round(
-                  categoryBreakdown[0].share
-                )}% of spend)`
-              : 'No expenses logged yet'}
+          <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            {expenses.length} expense entries · {incomes.length} income entries
           </div>
         </div>
       </div>
@@ -183,7 +187,6 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ transactions, curr
                   key={day.iso}
                   className="flex-1 h-full flex flex-col justify-end items-center group relative"
                 >
-                  {/* Hover Tooltip */}
                   <div className="opacity-0 group-hover:opacity-100 pointer-events-none absolute -top-8 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-[10px] font-mono-num px-2 py-1 rounded shadow-sm whitespace-nowrap z-10 transition-opacity">
                     {day.label}: {formatMoney(day.amount, currency)}
                   </div>
@@ -219,100 +222,139 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ transactions, curr
       </div>
 
       {/* Category Distribution & Top Merchants Split */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Category Distribution */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 sm:p-6 space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-              Spending by Category
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Proportional breakdown of total expenses ({formatMoney(totalExpense, currency)})
-            </p>
-          </div>
-
-          {/* Multi-segment Horizontal Stacked Bar */}
-          {categoryBreakdown.length > 0 && (
-            <div className="h-3.5 w-full rounded-full overflow-hidden flex gap-0.5 bg-slate-100 dark:bg-slate-800">
-              {categoryBreakdown.map((item) => (
-                <div
-                  key={item.category}
-                  className={CATEGORY_META[item.category].barClass}
-                  style={{ width: `${Math.max(3, item.share)}%` }}
-                  title={`${item.category}: ${Math.round(item.share)}%`}
-                />
-              ))}
-            </div>
-          )}
-
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {categoryBreakdown.map((item) => (
-              <div
-                key={item.category}
-                className="py-3 flex items-center justify-between gap-3"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <CategoryIcon category={item.category} size="sm" />
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
-                      {item.category}
-                    </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
-                      {item.count} {item.count === 1 ? 'transaction' : 'transactions'}
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right font-mono-num shrink-0">
-                  <div className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                    {formatMoney(item.amount, currency)}
-                  </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">
-                    {item.share.toFixed(1)}%
-                  </div>
-                </div>
+      <div
+        className={`grid grid-cols-1 ${
+          showCategorySpending ? 'lg:grid-cols-2' : 'lg:grid-cols-1'
+        } gap-6`}
+      >
+        {/* Category Distribution (Removable) */}
+        {showCategorySpending ? (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 sm:p-6 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                  Category Spending
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Proportional breakdown of total expenses ({formatMoney(totalExpense, currency)})
+                </p>
               </div>
-            ))}
+              <button
+                type="button"
+                onClick={onToggleCategorySpending}
+                className="min-h-[36px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/60 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0"
+              >
+                <EyeOff size={13} />
+                <span>Remove</span>
+              </button>
+            </div>
+
+            {categoryBreakdown.length > 0 && (
+              <div className="h-3.5 w-full rounded-full overflow-hidden flex gap-0.5 bg-slate-100 dark:bg-slate-800">
+                {categoryBreakdown.map((item) => (
+                  <div
+                    key={item.category}
+                    className={CATEGORY_META[item.category].barClass}
+                    style={{ width: `${Math.max(3, item.share)}%` }}
+                    title={`${item.category}: ${Math.round(item.share)}%`}
+                  />
+                ))}
+              </div>
+            )}
+
+            {categoryBreakdown.length === 0 ? (
+              <p className="text-xs text-slate-500 dark:text-slate-400 py-4">
+                No category expenses logged yet.
+              </p>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {categoryBreakdown.map((item) => (
+                  <div
+                    key={item.category}
+                    className="py-3 flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <CategoryIcon category={item.category} size="sm" />
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                          {item.category}
+                        </div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          {item.count} {item.count === 1 ? 'transaction' : 'transactions'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right font-mono-num shrink-0">
+                      <div className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                        {formatMoney(item.amount, currency)}
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        {item.share.toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
+        ) : null}
 
         {/* Top Merchants */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 sm:p-6 space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-              Top Merchants & Payees
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Highest cumulative spend destinations in your ledger
-            </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                Top Merchants & Payees
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Highest cumulative spend destinations in your ledger
+              </p>
+            </div>
+            {!showCategorySpending && (
+              <button
+                type="button"
+                onClick={onToggleCategorySpending}
+                className="min-h-[36px] px-3 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-semibold flex items-center gap-1.5"
+              >
+                <Eye size={13} />
+                <span>Show Category Spending</span>
+              </button>
+            )}
           </div>
 
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {topMerchants.map((merchant, idx) => (
-              <div
-                key={merchant.title}
-                className="py-3.5 flex items-center justify-between gap-3"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="font-mono-num text-xs font-bold text-slate-400 dark:text-slate-500 w-5">
-                    0{idx + 1}.
-                  </span>
-                  <CategoryIcon category={merchant.category} size="sm" />
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
-                      {merchant.title}
-                    </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
-                      {merchant.category} · {merchant.count}{' '}
-                      {merchant.count === 1 ? 'visit' : 'visits'}
+          {topMerchants.length === 0 ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400 py-4">
+              Merchant rankings will appear once you log expenses.
+            </p>
+          ) : (
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              {topMerchants.map((merchant, idx) => (
+                <div
+                  key={merchant.title}
+                  className="py-3.5 flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="font-mono-num text-xs font-bold text-slate-400 dark:text-slate-500 w-5">
+                      0{idx + 1}.
+                    </span>
+                    <CategoryIcon category={merchant.category} size="sm" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                        {merchant.title}
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        {merchant.category} · {merchant.count}{' '}
+                        {merchant.count === 1 ? 'visit' : 'visits'}
+                      </div>
                     </div>
                   </div>
+                  <div className="font-mono-num text-sm font-bold text-slate-900 dark:text-slate-100 shrink-0">
+                    {formatMoney(merchant.amount, currency)}
+                  </div>
                 </div>
-                <div className="font-mono-num text-sm font-bold text-slate-900 dark:text-slate-100 shrink-0">
-                  {formatMoney(merchant.amount, currency)}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

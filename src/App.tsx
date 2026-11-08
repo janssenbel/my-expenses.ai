@@ -3,6 +3,7 @@ import {
   Plus,
   Search,
   Wallet,
+  ArrowDownLeft,
   PieChart,
   BarChart3,
   CalendarClock,
@@ -17,8 +18,9 @@ import {
   Smartphone,
   Share,
   PlusSquare,
-  Edit3,
-  Check,
+  EyeOff,
+  Eye,
+  Trash2,
 } from 'lucide-react';
 import {
   ActiveTab,
@@ -44,6 +46,7 @@ import {
 } from './utils/formatters';
 import { CategoryIcon } from './components/CategoryIcon';
 import { ExpenseSheetModal } from './components/ExpenseSheetModal';
+import { IncomeView } from './components/IncomeView';
 import { BudgetsView } from './components/BudgetsView';
 import { AnalyticsView } from './components/AnalyticsView';
 import { RecurringView } from './components/RecurringView';
@@ -56,6 +59,7 @@ const STORAGE_KEYS = {
   RECURRING: 'verdant_ledger_recurring_v3',
   CURRENCY: 'verdant_ledger_currency_v3_php',
   THEME: 'verdant_ledger_theme_v3',
+  SHOW_CATEGORY_SPENDING: 'verdant_ledger_show_cat_spending_v1',
 };
 
 export default function App() {
@@ -71,8 +75,26 @@ export default function App() {
     }
     return 'Verdant Ledger';
   });
-  const [isEditingNameInline, setIsEditingNameInline] = useState<boolean>(false);
-  const [draftLedgerName, setDraftLedgerName] = useState<string>(ledgerName);
+
+  // Option to remove / hide Category Spending
+  const [showCategorySpending, setShowCategorySpending] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.SHOW_CATEGORY_SPENDING);
+      if (saved === 'false') return false;
+      if (saved === 'true') return true;
+    } catch {
+      // Default to true
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SHOW_CATEGORY_SPENDING, String(showCategorySpending));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [showCategorySpending]);
 
   useEffect(() => {
     try {
@@ -130,7 +152,7 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEYS.BUDGETS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {
       // Fallback to default budgets
@@ -174,6 +196,7 @@ export default function App() {
   // Expense Sheet Modal & iPhone Setup Guide state
   const [isSheetOpen, setIsSheetOpen] = useState<boolean>(false);
   const [sheetMode, setSheetMode] = useState<'manual' | 'scan'>('manual');
+  const [sheetEntryType, setSheetEntryType] = useState<'expense' | 'income'>('expense');
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [showIPhoneModal, setShowIPhoneModal] = useState<boolean>(false);
 
@@ -217,16 +240,6 @@ export default function App() {
     window.setTimeout(() => {
       setToastMessage((prev) => (prev === msg ? null : prev));
     }, 3200);
-  };
-
-  const handleCommitInlineName = (e: React.FormEvent) => {
-    e.preventDefault();
-    const clean = draftLedgerName.trim();
-    if (clean) {
-      setLedgerName(clean);
-      showToast(`Ledger renamed to "${clean}"`);
-    }
-    setIsEditingNameInline(false);
   };
 
   // Core financial metrics
@@ -279,15 +292,20 @@ export default function App() {
   }, [transactions, selectedDateIso, selectedCategory, searchQuery, sortOrder]);
 
   // Handlers
-  const handleOpenAddModal = (mode: 'manual' | 'scan' = 'manual') => {
+  const handleOpenAddModal = (
+    mode: 'manual' | 'scan' = 'manual',
+    entryType: 'expense' | 'income' = 'expense'
+  ) => {
     setEditingTx(null);
     setSheetMode(mode);
+    setSheetEntryType(entryType);
     setIsSheetOpen(true);
   };
 
   const handleOpenEditModal = (tx: Transaction) => {
     setEditingTx(tx);
     setSheetMode('manual');
+    setSheetEntryType(tx.type);
     setIsSheetOpen(true);
   };
 
@@ -303,7 +321,12 @@ export default function App() {
         id: `tx-${Date.now()}`,
       };
       setTransactions((prev) => [newTx, ...prev]);
-      showToast(`Logged ${txData.title} (${formatMoney(txData.amount, currency)})`);
+      showToast(
+        `Logged ${txData.type === 'income' ? 'income' : 'expense'}: ${txData.title} (${formatMoney(
+          txData.amount,
+          currency
+        )})`
+      );
     }
   };
 
@@ -323,6 +346,35 @@ export default function App() {
       prev.map((b) => (b.category === category ? { ...b, monthlyLimit: newLimit } : b))
     );
     showToast(`Updated ${category} limit to ${formatMoney(newLimit, currency)}`);
+  };
+
+  const handleRemoveCategoryBudget = (category: Exclude<ExpenseCategory, 'Income'>) => {
+    setBudgets((prev) => prev.filter((b) => b.category !== category));
+    showToast(`Removed ${category} from Category Spending`);
+  };
+
+  const handleAddCategoryBudget = (
+    category: Exclude<ExpenseCategory, 'Income'>,
+    monthlyLimit: number
+  ) => {
+    setBudgets((prev) => [
+      ...prev.filter((b) => b.category !== category),
+      { category, monthlyLimit, alertThreshold: 0.8 },
+    ]);
+    showToast(`Added ${category} spending limit (${formatMoney(monthlyLimit, currency)})`);
+  };
+
+  const handleToggleCategorySpending = () => {
+    setShowCategorySpending((prev) => {
+      const next = !prev;
+      if (!next && activeTab === 'budgets') {
+        setActiveTab('overview');
+      }
+      showToast(
+        next ? 'Restored Category Spending' : 'Removed Category Spending from workspace'
+      );
+      return next;
+    });
   };
 
   const handleLogRecurringPayment = (bill: RecurringBill) => {
@@ -390,14 +442,22 @@ export default function App() {
     showToast(`Downloaded ${filteredTransactions.length} transactions as CSV`);
   };
 
-  // Top Bar Navigation Items (Strict 3-Zone Top Bar Contract)
-  const navItems: Array<{ id: ActiveTab; label: string; icon: React.ReactNode }> = [
-    { id: 'overview', label: 'Ledger', icon: <Wallet size={19} /> },
-    { id: 'budgets', label: 'Budgets', icon: <PieChart size={19} /> },
-    { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={19} /> },
-    { id: 'recurring', label: 'Recurring', icon: <CalendarClock size={19} /> },
-    { id: 'data', label: 'Settings', icon: <FileSpreadsheet size={19} /> },
-  ];
+  // Dynamic Navigation Items (Includes dedicated Income tab; omits Budgets tab if user removed Category Spending)
+  const navItems = useMemo(() => {
+    const items: Array<{ id: ActiveTab; label: string; icon: React.ReactNode }> = [
+      { id: 'overview', label: 'Ledger', icon: <Wallet size={19} /> },
+      { id: 'income', label: 'Income', icon: <ArrowDownLeft size={19} /> },
+    ];
+    if (showCategorySpending) {
+      items.push({ id: 'budgets', label: 'Budgets', icon: <PieChart size={19} /> });
+    }
+    items.push(
+      { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={19} /> },
+      { id: 'recurring', label: 'Recurring', icon: <CalendarClock size={19} /> },
+      { id: 'data', label: 'Settings', icon: <FileSpreadsheet size={19} /> }
+    );
+    return items;
+  }, [showCategorySpending]);
 
   // Category spending map for sidebar quick preview
   const categorySpendMap = useMemo(() => {
@@ -412,7 +472,7 @@ export default function App() {
 
   return (
     <div className="min-h-dvh flex flex-col bg-[#F8FAFC] dark:bg-[#090D16] text-[#0F172A] dark:text-[#F8FAFC] mb-safe-nav md:pb-12 transition-colors duration-200">
-      {/* Solid Opaque iPhone-Safe Top Bar (No backdrop blur collision or crushed height on iOS) */}
+      {/* Solid Opaque iPhone-Safe Top Bar */}
       <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 pt-safe px-4 sm:px-6 min-h-14 flex items-center justify-between gap-8">
         {/* Zone 1: Single text element Brand Wordmark (Dynamic Custom Ledger Name) */}
         <a
@@ -426,7 +486,7 @@ export default function App() {
           {ledgerName}
         </a>
 
-        {/* Zone 2: 5 clean single-line text navigation links */}
+        {/* Zone 2: Clean single-line text navigation links */}
         <nav
           className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-400"
           aria-label="Primary Navigation"
@@ -451,11 +511,13 @@ export default function App() {
         <div className="flex items-center shrink-0 py-2">
           <button
             type="button"
-            onClick={() => handleOpenAddModal('manual')}
+            onClick={() =>
+              handleOpenAddModal('manual', activeTab === 'income' ? 'income' : 'expense')
+            }
             className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] rounded-xl flex items-center gap-1.5 shadow-xs transition-all whitespace-nowrap shrink-0"
           >
             <Plus size={16} />
-            <span>Log Expense</span>
+            <span>{activeTab === 'income' ? 'Log Income' : 'Log Expense'}</span>
           </button>
         </div>
       </header>
@@ -464,61 +526,19 @@ export default function App() {
       <main className="w-full max-w-6xl mx-auto px-4 sm:px-6 pt-4 sm:pt-5 flex-1 space-y-5 sm:space-y-6">
         {/* Top Financial Overview Banner */}
         <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 sm:p-6 space-y-5">
-          {/* Sub-Toolbar for Renaming Ledger, Dark Mode, and iPhone Setup */}
+          {/* Sub-Toolbar for Currency, Dark Mode, and iPhone Setup */}
           <div className="flex flex-wrap items-center justify-between gap-3 pb-3.5 border-b border-slate-100 dark:border-slate-800">
-            {isEditingNameInline ? (
-              <form
-                onSubmit={handleCommitInlineName}
-                className="flex items-center gap-2 flex-1 min-w-[220px]"
-              >
-                <input
-                  type="text"
-                  value={draftLedgerName}
-                  onChange={(e) => setDraftLedgerName(e.target.value)}
-                  maxLength={36}
-                  placeholder="Enter ledger name..."
-                  autoFocus
-                  className="min-h-[38px] px-3 py-1 rounded-xl border border-emerald-500 bg-white dark:bg-slate-950 text-base sm:text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold flex items-center gap-1 shrink-0"
-                >
-                  <Check size={14} />
-                  <span>Save</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsEditingNameInline(false)}
-                  className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold shrink-0"
-                >
-                  Cancel
-                </button>
-              </form>
-            ) : (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                  {ledgerName}
-                </span>
-                <span className="text-xs text-slate-400" aria-hidden="true">
-                  ·
-                </span>
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                  {currency.code} ({currency.symbol})
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDraftLedgerName(ledgerName);
-                    setIsEditingNameInline(true);
-                  }}
-                  className="min-h-[34px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
-                >
-                  <Edit3 size={12} />
-                  <span>Rename Ledger</span>
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                {ledgerName}
+              </span>
+              <span className="text-xs text-slate-400" aria-hidden="true">
+                ·
+              </span>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                {currency.code} ({currency.symbol})
+              </span>
+            </div>
 
             <div className="flex items-center gap-2">
               <button
@@ -552,62 +572,74 @@ export default function App() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-            {/* Left Primary Focal Anchor: Remaining Budget & Total Spend */}
+            {/* Left Primary Focal Anchor: Total Spend (& Budget if enabled) */}
             <div className="lg:col-span-5 space-y-2">
               <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Monthly Spend vs. Planned Budget
+                {showCategorySpending && totalMonthlyBudget > 0
+                  ? 'Monthly Spend vs. Planned Budget'
+                  : 'Total Monthly Expenses'}
               </div>
               <div className="flex items-baseline gap-3 font-mono-num flex-wrap">
                 <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
                   {formatMoney(totalExpenses, currency)}
                 </span>
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                  of {formatMoney(totalMonthlyBudget, currency)} budget
-                </span>
+                {showCategorySpending && totalMonthlyBudget > 0 && (
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    of {formatMoney(totalMonthlyBudget, currency)} budget
+                  </span>
+                )}
               </div>
 
-              {/* Clean Progress Bar */}
-              <div className="pt-1">
-                <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-200 ${
-                      budgetRemaining < 0
-                        ? 'bg-rose-600'
-                        : budgetUsedPct >= 80
-                        ? 'bg-amber-500'
-                        : 'bg-emerald-600 dark:bg-emerald-500'
-                    }`}
-                    style={{ width: `${Math.max(2, budgetUsedPct)}%` }}
-                  />
+              {showCategorySpending && totalMonthlyBudget > 0 && (
+                <div className="pt-1">
+                  <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-200 ${
+                        budgetRemaining < 0
+                          ? 'bg-rose-600'
+                          : budgetUsedPct >= 80
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-600 dark:bg-emerald-500'
+                      }`}
+                      style={{ width: `${Math.max(2, budgetUsedPct)}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-1.5 font-mono-num">
+                    <span>{budgetUsedPct}% of monthly budget used</span>
+                    <span
+                      className={
+                        budgetRemaining < 0
+                          ? 'text-rose-600 dark:text-rose-400 font-semibold'
+                          : 'text-emerald-700 dark:text-emerald-400 font-semibold'
+                      }
+                    >
+                      {budgetRemaining >= 0
+                        ? `${formatMoney(budgetRemaining, currency)} left`
+                        : `${formatMoney(Math.abs(budgetRemaining), currency)} over`}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mt-1.5 font-mono-num">
-                  <span>{budgetUsedPct}% of monthly budget used</span>
-                  <span
-                    className={
-                      budgetRemaining < 0
-                        ? 'text-rose-600 dark:text-rose-400 font-semibold'
-                        : 'text-emerald-700 dark:text-emerald-400 font-semibold'
-                    }
-                  >
-                    {budgetRemaining >= 0
-                      ? `${formatMoney(budgetRemaining, currency)} left`
-                      : `${formatMoney(Math.abs(budgetRemaining), currency)} over`}
-                  </span>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Right Metrics & Quick Action Toolbar */}
             <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 pt-3 lg:pt-0 border-t lg:border-t-0 lg:border-l border-slate-100 dark:border-slate-800 lg:pl-6">
-              <div>
-                <div className="text-xs text-slate-500 dark:text-slate-400">Monthly Income</div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('income')}
+                className="text-left rounded-xl p-2 -m-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+              >
+                <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                  <span>Monthly Income</span>
+                  <ChevronRight size={13} />
+                </div>
                 <div className="font-mono-num text-lg sm:text-xl font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">
                   {formatMoney(totalIncome, currency, true)}
                 </div>
                 <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                   Net {formatMoney(totalIncome - totalExpenses, currency, true)}
                 </div>
-              </div>
+              </button>
 
               <div>
                 <div className="text-xs text-slate-500 dark:text-slate-400">Upcoming Bills</div>
@@ -623,7 +655,7 @@ export default function App() {
               <div className="col-span-2 sm:col-span-1 flex sm:flex-col justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => handleOpenAddModal('scan')}
+                  onClick={() => handleOpenAddModal('scan', 'expense')}
                   className="flex-1 min-h-[44px] px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 hover:bg-emerald-100 dark:hover:bg-emerald-900/70 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
                 >
                   <Camera size={15} />
@@ -807,8 +839,8 @@ export default function App() {
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
                       {transactions.length === 0
-                        ? 'Log your first expense in Philippine Peso (₱) using the tactile keypad or snap a receipt photo.'
-                        : 'Try clearing your date or category filter, or log a new expense.'}
+                        ? 'Log your first expense or income in Philippine Peso (₱) using the tactile keypad or snap a receipt photo.'
+                        : 'Try clearing your date or category filter, or log a new entry.'}
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
                       {(selectedDateIso || selectedCategory !== 'ALL' || searchQuery) && (
@@ -826,15 +858,23 @@ export default function App() {
                       )}
                       <button
                         type="button"
-                        onClick={() => handleOpenAddModal('manual')}
+                        onClick={() => handleOpenAddModal('manual', 'expense')}
                         className="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold text-white flex items-center gap-1.5"
                       >
                         <Plus size={15} />
-                        <span>Log First Expense</span>
+                        <span>Log Expense</span>
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleOpenAddModal('scan')}
+                        onClick={() => handleOpenAddModal('manual', 'income')}
+                        className="min-h-[44px] px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-xs font-semibold text-white flex items-center gap-1.5"
+                      >
+                        <ArrowDownLeft size={15} />
+                        <span>Log Income</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenAddModal('scan', 'expense')}
                         className="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 hover:bg-emerald-100 dark:hover:bg-emerald-900/70 text-xs font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5"
                       >
                         <Camera size={15} />
@@ -906,59 +946,110 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right Column on Desktop: Category Budget Watch & Upcoming Subscriptions */}
+            {/* Right Column on Desktop: Category Spending (Removable) & Upcoming Subscriptions */}
             <aside className="lg:col-span-4 space-y-6">
-              {/* Budget Watch Card */}
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                    Category Budget Watch
-                  </h3>
+              {showCategorySpending ? (
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 space-y-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                      Category Spending
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('budgets')}
+                        className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline"
+                      >
+                        Edit Limits
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleToggleCategorySpending}
+                        title="Remove Category Spending"
+                        className="min-h-[30px] px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/60 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                      >
+                        <EyeOff size={12} />
+                        <span>Remove</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {budgets.length === 0 ? (
+                    <div className="py-3 text-xs text-slate-500 dark:text-slate-400 space-y-2">
+                      <p>All individual categories removed.</p>
+                      <button
+                        type="button"
+                        onClick={() => setBudgets(INITIAL_BUDGETS)}
+                        className="text-emerald-700 dark:text-emerald-400 font-semibold hover:underline"
+                      >
+                        Restore Default Categories
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3.5">
+                      {budgets.slice(0, 6).map((b) => {
+                        const spent = categorySpendMap[b.category] ?? 0;
+                        const pct =
+                          b.monthlyLimit > 0 ? Math.round((spent / b.monthlyLimit) * 100) : 0;
+                        const isOver = spent > b.monthlyLimit;
+                        const isWarn = !isOver && pct >= 80;
+                        const meta = CATEGORY_META[b.category];
+
+                        return (
+                          <div key={b.category} className="space-y-1.5 group">
+                            <div className="flex items-center justify-between text-xs gap-2">
+                              <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                {b.category}
+                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="font-mono-num text-slate-600 dark:text-slate-400">
+                                  {formatMoney(spent, currency)} /{' '}
+                                  {formatMoney(b.monthlyLimit, currency)}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveCategoryBudget(b.category)}
+                                  aria-label={`Remove ${b.category}`}
+                                  title={`Remove ${b.category}`}
+                                  className="text-slate-300 dark:text-slate-600 hover:text-rose-600 dark:hover:text-rose-400 p-0.5 transition-colors"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${
+                                  isOver
+                                    ? 'bg-rose-600'
+                                    : isWarn
+                                    ? 'bg-amber-500'
+                                    : meta.barClass
+                                }`}
+                                style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 flex items-center justify-between gap-3">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    Category Spending is hidden
+                  </span>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('budgets')}
-                    className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline"
+                    onClick={handleToggleCategorySpending}
+                    className="min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 text-slate-700 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
                   >
-                    Manage Limits →
+                    <Eye size={13} />
+                    <span>Show Category Spending</span>
                   </button>
                 </div>
-
-                <div className="space-y-3.5">
-                  {budgets.slice(0, 5).map((b) => {
-                    const spent = categorySpendMap[b.category] ?? 0;
-                    const pct =
-                      b.monthlyLimit > 0 ? Math.round((spent / b.monthlyLimit) * 100) : 0;
-                    const isOver = spent > b.monthlyLimit;
-                    const isWarn = !isOver && pct >= 80;
-                    const meta = CATEGORY_META[b.category];
-
-                    return (
-                      <div key={b.category} className="space-y-1.5">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-semibold text-slate-800 dark:text-slate-200">
-                            {b.category}
-                          </span>
-                          <span className="font-mono-num text-slate-600 dark:text-slate-400">
-                            {formatMoney(spent, currency)} / {formatMoney(b.monthlyLimit, currency)}
-                          </span>
-                        </div>
-                        <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${
-                              isOver
-                                ? 'bg-rose-600'
-                                : isWarn
-                                ? 'bg-amber-500'
-                                : meta.barClass
-                            }`}
-                            style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              )}
 
               {/* Next Recurring Bills Snapshot */}
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 space-y-4">
@@ -1005,17 +1096,40 @@ export default function App() {
           </div>
         )}
 
+        {activeTab === 'income' && (
+          <IncomeView
+            transactions={transactions}
+            currency={currency}
+            onOpenIncomeKeypad={() => handleOpenAddModal('manual', 'income')}
+            onEditTransaction={handleOpenEditModal}
+            onAddIncomeDirect={(txData) => handleSaveTransaction(txData)}
+            onDeleteTransaction={handleDeleteTransaction}
+          />
+        )}
+
         {activeTab === 'budgets' && (
           <BudgetsView
             budgets={budgets}
             transactions={transactions}
             currency={currency}
             onUpdateBudgetLimit={handleUpdateBudgetLimit}
+            onRemoveCategoryBudget={handleRemoveCategoryBudget}
+            onAddCategoryBudget={handleAddCategoryBudget}
+            onResetDefaultBudgets={() => {
+              setBudgets(INITIAL_BUDGETS);
+              showToast('Restored all default category budgets');
+            }}
+            onDisableCategorySpending={handleToggleCategorySpending}
           />
         )}
 
         {activeTab === 'analytics' && (
-          <AnalyticsView transactions={transactions} currency={currency} />
+          <AnalyticsView
+            transactions={transactions}
+            currency={currency}
+            showCategorySpending={showCategorySpending}
+            onToggleCategorySpending={handleToggleCategorySpending}
+          />
         )}
 
         {activeTab === 'recurring' && (
@@ -1033,8 +1147,9 @@ export default function App() {
             ledgerName={ledgerName}
             onUpdateLedgerName={(newName) => {
               setLedgerName(newName);
-              setDraftLedgerName(newName);
             }}
+            showCategorySpending={showCategorySpending}
+            onToggleCategorySpending={handleToggleCategorySpending}
             transactions={transactions}
             budgets={budgets}
             recurringBills={recurringBills}
@@ -1047,7 +1162,6 @@ export default function App() {
             }}
             onRestoreBackup={(backup) => {
               setLedgerName(backup.ledgerName);
-              setDraftLedgerName(backup.ledgerName);
               setCurrency(backup.currency);
               setTransactions(backup.transactions);
               setBudgets(backup.budgets);
@@ -1069,7 +1183,9 @@ export default function App() {
 
       {/* Mobile Fixed Bottom Tab Bar with Solid Opaque Surface & iPhone Safe-Area Padding */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 pb-safe bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-2 grid grid-cols-5 items-center"
+        className={`md:hidden fixed bottom-0 left-0 right-0 z-40 pb-safe bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-1.5 grid ${
+          navItems.length === 6 ? 'grid-cols-6' : 'grid-cols-5'
+        } items-center`}
         aria-label="Mobile Bottom Navigation"
       >
         {navItems.map((item) => {
@@ -1185,6 +1301,7 @@ export default function App() {
         editingTransaction={editingTx}
         currency={currency}
         initialMode={sheetMode}
+        initialEntryType={sheetEntryType}
       />
     </div>
   );
