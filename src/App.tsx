@@ -194,7 +194,6 @@ export default function App() {
 
   // Expense Sheet Modal & iPhone Setup Guide state
   const [isSheetOpen, setIsSheetOpen] = useState<boolean>(false);
-  const [sheetMode, setSheetMode] = useState<'choice' | 'manual' | 'scan'>('choice');
   const [sheetEntryType, setSheetEntryType] = useState<'expense' | 'income'>('expense');
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [showIPhoneModal, setShowIPhoneModal] = useState<boolean>(false);
@@ -291,19 +290,14 @@ export default function App() {
   }, [transactions, selectedDateIso, selectedCategory, searchQuery, sortOrder]);
 
   // Handlers
-  const handleOpenAddModal = (
-    mode: 'choice' | 'manual' | 'scan' = 'choice',
-    entryType: 'expense' | 'income' = 'expense'
-  ) => {
+  const handleOpenAddModal = (entryType: 'expense' | 'income' = 'expense') => {
     setEditingTx(null);
-    setSheetMode(mode);
     setSheetEntryType(entryType);
     setIsSheetOpen(true);
   };
 
   const handleOpenEditModal = (tx: Transaction) => {
     setEditingTx(tx);
-    setSheetMode('manual');
     setSheetEntryType(tx.type);
     setIsSheetOpen(true);
   };
@@ -511,10 +505,7 @@ export default function App() {
           <button
             type="button"
             onClick={() =>
-              handleOpenAddModal(
-                activeTab === 'income' ? 'manual' : 'choice',
-                activeTab === 'income' ? 'income' : 'expense'
-              )
+              handleOpenAddModal(activeTab === 'income' ? 'income' : 'expense')
             }
             className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] rounded-xl flex items-center gap-1.5 shadow-xs transition-all whitespace-nowrap shrink-0"
           >
@@ -657,7 +648,7 @@ export default function App() {
               <div className="col-span-2 sm:col-span-1 flex sm:flex-col justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => handleOpenAddModal('choice', 'expense')}
+                  onClick={() => handleOpenAddModal('expense')}
                   className="flex-1 min-h-[44px] px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap shrink-0 shadow-xs"
                 >
                   <Plus size={15} />
@@ -841,7 +832,7 @@ export default function App() {
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
                       {transactions.length === 0
-                        ? 'Log your first expense or income in Philippine Peso (₱) using the tactile keypad or snap a receipt photo.'
+                        ? 'Log your first expense or income in Philippine Peso (₱) using the tactile keypad.'
                         : 'Try clearing your date or category filter, or log a new entry.'}
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
@@ -860,7 +851,7 @@ export default function App() {
                       )}
                       <button
                         type="button"
-                        onClick={() => handleOpenAddModal('choice', 'expense')}
+                        onClick={() => handleOpenAddModal('expense')}
                         className="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold text-white flex items-center gap-1.5"
                       >
                         <Plus size={15} />
@@ -868,7 +859,7 @@ export default function App() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleOpenAddModal('manual', 'income')}
+                        onClick={() => handleOpenAddModal('income')}
                         className="min-h-[44px] px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-xs font-semibold text-white flex items-center gap-1.5"
                       >
                         <ArrowDownLeft size={15} />
@@ -898,14 +889,6 @@ export default function App() {
                               <span>{tx.paymentMethod}</span>
                               <span aria-hidden="true">·</span>
                               <span>{formatShortDate(tx.date)}</span>
-                              {tx.receiptItems && tx.receiptItems.length > 0 && (
-                                <>
-                                  <span aria-hidden="true">·</span>
-                                  <span className="text-emerald-700 dark:text-emerald-400 font-medium">
-                                    Receipt ({tx.receiptItems.length} items)
-                                  </span>
-                                </>
-                              )}
                             </div>
                             {tx.notes && (
                               <div className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
@@ -1094,7 +1077,7 @@ export default function App() {
           <IncomeView
             transactions={transactions}
             currency={currency}
-            onOpenIncomeKeypad={() => handleOpenAddModal('manual', 'income')}
+            onOpenIncomeKeypad={() => handleOpenAddModal('income')}
             onEditTransaction={handleOpenEditModal}
             onAddIncomeDirect={(txData) => handleSaveTransaction(txData)}
             onDeleteTransaction={handleDeleteTransaction}
@@ -1286,7 +1269,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Slide-Up Quick Expense & Receipt Scanner Modal */}
+      {/* Slide-Up Quick Expense & Income Modal */}
       <ExpenseSheetModal
         isOpen={isSheetOpen}
         onClose={() => setIsSheetOpen(false)}
@@ -1294,7 +1277,6 @@ export default function App() {
         onDelete={handleDeleteTransaction}
         editingTransaction={editingTx}
         currency={currency}
-        initialMode={sheetMode}
         initialEntryType={sheetEntryType}
       />
     </div>
